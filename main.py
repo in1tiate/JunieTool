@@ -39,6 +39,7 @@ def calculate_aspect(width: int, height: int) -> str:
 
 
 crop_h = True
+overwrite_og = False
 
 root = tk.Tk()
 root.title('JunieTool')
@@ -131,42 +132,38 @@ def calculate_ratio():
 def ffmpeg_export():
     des_w = int(entry_w.get())
     des_h = int(entry_h.get())
+    if (des_w > imgw) or (des_h > imgh):
+        tk.messagebox.showerror(
+            title=None, message="Desired size is larger than source size!")
+        return
     old_ratio = imgw / imgh
     new_ratio = des_w / des_h
-    if crop_h:
-        if old_ratio == new_ratio:
-            x_offset = 0
-            new_w = imgw
-        else:
-            new_w = new_ratio * imgh
-            x_offset = (imgw - new_w) / 2
-        if new_ratio == (new_w / imgh):
-            print("yes")
-        else:
-            print("no")
-            print(str(new_ratio)+" "+str(new_w / imgh))
-            return
-        for x in files:
-            print("Operation on " + str(x))
-            stream = ffmpeg.input(str(x))
-            stream = ffmpeg.crop(stream, x_offset, 0, new_w, imgh)
-            stream = ffmpeg.filter(stream, "scale", des_w, des_h)
-            stream = ffmpeg.output(stream, str(x) + "OUT.png")
-            ffmpeg.run(stream)
-
-    else:
-        new_h = old_ratio * int(entry_w.get())
-        new_w = imgw
-        if old_ratio == new_ratio:
-            y_offset = 0
-        else:
-            y_offset = (int(entry_h.get()) - new_h) / 2
-        for x in files:
-            stream = ffmpeg.input(str(x))
-            stream = ffmpeg.crop(x, 0, y_offset, new_w, new_h).filter(stream,
-                                                                      "resize", new_w, new_h)
-            stream = ffmpeg.output(stream, str(x) + "OUT.png")
-            ffmpeg.run(stream)
+    x_offset = 0
+    y_offset = 0
+    new_w = imgw
+    new_h = imgh
+    if crop_h and old_ratio != new_ratio:
+        new_w = new_ratio * imgh  # get the new width for the desired aspect ratio
+        x_offset = (imgw - new_w) / 2  # centering math
+    elif not (crop_h) and (old_ratio != new_ratio):
+        new_h = new_ratio * imgw
+        y_offset = (imgh - new_h) / 2
+    for x in files:
+        newdir = os.path.dirname(str(x)) + '_' + \
+            str(des_w) + 'x' + str(des_h)
+        if not overwrite_og:
+            outdir = os.path.dirname(
+                str(x)) + '_' + str(des_w) + 'x' + str(des_h) + os.sep + str(os.path.split(x)[1])
+        if not os.path.isdir(newdir):
+            os.mkdir(newdir)
+        elif overwrite_og:
+            outdir = str(x)
+        stream = ffmpeg.input(str(x))
+        stream = ffmpeg.crop(stream, x_offset, y_offset, new_w, new_h)
+        stream = ffmpeg.filter(stream, "scale", des_w, des_h)
+        stream = ffmpeg.output(stream, outdir)
+        stream = ffmpeg.overwrite_output(stream)
+        ffmpeg.run(stream)
 
 
 frame_ffmpeg = tk.Frame(frame_main, bd=1, padx=12, pady=3, bg="blue")
