@@ -6,6 +6,7 @@ import ffmpeg
 from subprocess import check_output
 import re
 from PIL import ImageTk, Image
+import ctypes
 
 
 def sort_human(l):
@@ -39,28 +40,19 @@ def calculate_aspect(width: int, height: int) -> str:
     return f"{x}:{y}"
 
 
-crop_h = True
-overwrite_og = False
-
 root = tk.Tk()
 root.title('JunieTool')
 
-frame_main = tk.Frame(root, padx=12, pady=3)
-frame_main.grid(column=0, row=0)
-
-root.columnconfigure(0, weight=1)
-root.rowconfigure(0, weight=1)
-
-frame_select = tk.Frame(frame_main, bd=1, padx=12,
-                        pady=3, bg="green2", width=480)
-frame_select.grid(column=0, row=0)
+frame_select = tk.Frame(root, bd=1, padx=12,
+                        pady=3, relief="raised", width=480)
+frame_select.grid(row=0, column=0, sticky="nesw")
 
 selected_seq_info = tk.Message(
     frame_select, text="No images selected", width=480)
-selected_seq_info.grid(row=1, column=0)
+selected_seq_info.grid(row=1, sticky="ew")
 
 selected_img_info = tk.Message(frame_select, text="", width=480)
-selected_img_info.grid(row=2, column=0)
+selected_img_info.grid(row=2, sticky="ew")
 
 imgw, imgh = (1, 1)
 files = []
@@ -94,8 +86,8 @@ def browseFirstImage():
 
 
 button_browse = tk.Button(
-    frame_select, text='Browse...', command=browseFirstImage)
-button_browse.grid(row=0, column=0, padx=12, pady=3)
+    frame_select, text='Browse...', command=browseFirstImage, width=15)
+button_browse.grid(row=0, sticky="ew")
 
 
 def calculate_ratio():
@@ -104,9 +96,20 @@ def calculate_ratio():
     ratio_display.config(text=disp_temp)
 
 
-frame_options = tk.Frame(frame_main, bd=1, relief="sunken",
-                         padx=12, pady=3, bg="yellow")
-frame_options.grid(column=0, row=1)
+crop_h = tk.IntVar()
+crop_h.set(1)
+overwrite_og = tk.IntVar()
+
+frame_options = tk.Frame(root, bd=1, relief="raised",
+                         padx=12, pady=3)
+frame_options.grid(row=2, column=0, sticky="nesw")
+check_overwrite_og = tk.Checkbutton(
+    frame_options, text='Overwrite source images', variable=overwrite_og, onvalue=True, offvalue=False)
+check_overwrite_og.pack(anchor="w")
+radio_crop_h = tk.Radiobutton(
+    frame_options, text="Crop by height", variable=crop_h, value=1).pack(anchor="w")
+radio_crop_w = tk.Radiobutton(
+    frame_options, text="Crop by width", variable=crop_h, value=0).pack(anchor="w")
 
 
 def ffmpeg_export():
@@ -129,37 +132,48 @@ def ffmpeg_export():
         new_h = new_ratio * imgw
         y_offset = (imgh - new_h) / 2
     for x in files:
-        newdir = os.path.dirname(str(x)) + '_' + \
-            str(des_w) + 'x' + str(des_h)
+        # user never sees this because the UI freezes while ffmpeg runs, but it's a nice thought
+        progress_ffmpeg.config(text='Rendering: ' + os.path.split(x)[1])
+        # ffmpeg complains if we try to output to the same file as our input...
+        outdir = x + '~.png'
         if not overwrite_og:
-            outdir = os.path.dirname(
-                str(x)) + '_' + str(des_w) + 'x' + str(des_h) + os.sep + str(os.path.split(x)[1])
-        if not os.path.isdir(newdir):
-            os.mkdir(newdir)
-        elif overwrite_og:
-            outdir = str(x)
+            newdir = os.path.dirname(str(x)) + '_' + \
+                str(des_w) + 'x' + str(des_h)
+            outdir = newdir + os.sep + str(os.path.split(x)[1])
+            if not os.path.isdir(newdir):
+                os.mkdir(newdir)
         stream = ffmpeg.input(str(x))
         stream = ffmpeg.crop(stream, x_offset, y_offset, new_w, new_h)
         stream = ffmpeg.filter(stream, "scale", des_w, des_h)
         stream = ffmpeg.output(stream, outdir)
         stream = ffmpeg.overwrite_output(stream)
         ffmpeg.run(stream)
+        # ...so we output to a different file, then replace the original with ours afterwards.
+        if overwrite_og:
+            os.remove(x)
+            os.rename(x + '~.png', x)
+    progress_ffmpeg.config(text='Rendering: Done!')
+    ctypes.windll.user32.FlashWindow(
+        ctypes.windll.kernel32.GetConsoleWindow(), True)
 
 
-frame_ffmpeg = tk.Frame(frame_main, bd=1, padx=12, pady=3, bg="blue")
-frame_ffmpeg.grid(column=1, row=1)
+frame_ffmpeg = tk.Frame(root, bd=1, padx=12, pady=3,
+                        relief="raised")
+frame_ffmpeg.grid(row=3, column=0, sticky="nesw")
 
 button_ffmpeg = tk.Button(
-    frame_ffmpeg, text='Render', command=ffmpeg_export, state="disabled")
-button_ffmpeg.grid(row=0, column=1, padx=12)
+    frame_ffmpeg, text='Render', command=ffmpeg_export, state="disabled", width=15, height=3)
+button_ffmpeg.grid(row=0, sticky="ew")
+progress_ffmpeg = tk.Message(frame_ffmpeg, text='Rendering: N/A', width=400)
+progress_ffmpeg.grid(row=1, sticky="ew")
 
-frame_entry = tk.Frame(frame_main, bd=1, relief="sunken",
-                       padx=12, pady=3, bg="red", width=1400)
-frame_entry.grid(column=1, row=0)
+frame_entry = tk.Frame(root, bd=1, relief="raised",
+                       padx=12, pady=3, width=1400)
+frame_entry.grid(row=1, column=0, sticky="nesw")
 
-tk.Label(frame_entry, text='Enter desired size:').grid(row=0)
-tk.Label(frame_entry, text='Width').grid(row=1)
-tk.Label(frame_entry, text='Height').grid(row=2)
+tk.Label(frame_entry, text='Enter desired size:').grid(row=0, column=0)
+tk.Label(frame_entry, text='Width').grid(row=1, column=0, sticky="e")
+tk.Label(frame_entry, text='Height').grid(row=2, column=0, sticky="e")
 
 sv_w = tk.StringVar()
 sv_h = tk.StringVar()
@@ -180,10 +194,10 @@ sv_h.trace_add("write", sv_edited)
 
 entry_w = tk.Entry(frame_entry, textvariable=sv_w)
 entry_h = tk.Entry(frame_entry, textvariable=sv_h)
-entry_w.grid(row=1, column=1)
-entry_h.grid(row=2, column=1)
+entry_w.grid(row=1, column=1, padx=1, pady=1, sticky="w")
+entry_h.grid(row=2, column=1, padx=1, pady=1, sticky="w")
 
 
 ratio_display = tk.Message(frame_entry, text="Ratio: N/A", width=500)
-ratio_display.grid(row=3, column=1)
+ratio_display.grid(row=0, column=1, sticky="e")
 root.mainloop()
