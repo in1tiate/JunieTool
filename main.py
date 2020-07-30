@@ -7,6 +7,13 @@ from subprocess import check_output
 import re
 from PIL import ImageTk, Image
 import ctypes
+import sys
+
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 
 def sort_human(l):
@@ -42,7 +49,7 @@ def calculate_aspect(width: int, height: int) -> str:
 
 root = tk.Tk()
 root.title('JunieTool')
-root.iconbitmap('icon.ico')
+root.iconbitmap(resource_path('icon.ico'))
 
 frame_select = tk.Frame(root, bd=1, padx=12,
                         pady=3, relief="raised", width=480)
@@ -100,6 +107,7 @@ def calculate_ratio():
 crop_h = tk.IntVar()
 crop_h.set(1)
 overwrite_og = tk.IntVar()
+overwrite_og.set(0)
 
 frame_options = tk.Frame(root, bd=1, relief="raised",
                          padx=12, pady=3)
@@ -126,10 +134,10 @@ def ffmpeg_export():
     y_offset = 0
     new_w = imgw
     new_h = imgh
-    if crop_h and old_ratio != new_ratio:
+    if (crop_h.get() == 1) and (old_ratio != new_ratio):
         new_w = new_ratio * imgh  # get the new width for the desired aspect ratio
         x_offset = (imgw - new_w) / 2  # centering math
-    elif not (crop_h) and (old_ratio != new_ratio):
+    elif (crop_h.get() == 0) and (old_ratio != new_ratio):
         new_h = new_ratio * imgw
         y_offset = (imgh - new_h) / 2
     for x in files:
@@ -137,7 +145,7 @@ def ffmpeg_export():
         progress_ffmpeg.config(text='Rendering: ' + os.path.split(x)[1])
         # ffmpeg complains if we try to output to the same file as our input...
         outdir = x + '~.png'
-        if not overwrite_og:
+        if overwrite_og.get() == 0:
             newdir = os.path.dirname(str(x)) + '_' + \
                 str(des_w) + 'x' + str(des_h)
             outdir = newdir + os.sep + str(os.path.split(x)[1])
@@ -150,7 +158,7 @@ def ffmpeg_export():
         stream = ffmpeg.overwrite_output(stream)
         ffmpeg.run(stream)
         # ...so we output to a different file, then replace the original with ours afterwards.
-        if overwrite_og:
+        if overwrite_og.get() == 1:
             os.remove(x)
             os.rename(x + '~.png', x)
     progress_ffmpeg.config(text='Rendering: Done!')
