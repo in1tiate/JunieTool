@@ -42,6 +42,7 @@ def calculate_aspect(width: int, height: int) -> str:
 
 root = tk.Tk()
 root.title('JunieTool')
+root.iconbitmap('icon.ico')
 
 frame_select = tk.Frame(root, bd=1, padx=12,
                         pady=3, relief="raised", width=480)
