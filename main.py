@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 from tkinter import filedialog
+from tkinter import messagebox
 import ffmpeg
 from subprocess import check_output
 import re
@@ -63,12 +64,14 @@ selected_img_info.grid(row=2, column=0)
 
 imgw, imgh = (1, 1)
 files = []
+file_open = False
 
 
 def browseFirstImage():
     global imgw
     global imgh
     global files
+    global file_open
     file = filedialog.askopenfile(
         parent=root, mode='rb', title='Choose any image in the sequence', filetypes=[('PNG Images', ['.png'])])
     if not file:
@@ -85,42 +88,14 @@ def browseFirstImage():
     imgw, imgh = im.size
     selected_img_info.config(
         text=str(imgw)+"x"+str(imgh)+", "+calculate_aspect(imgw, imgh))
+    file_open = True
+    if entry_h.get() != "" and entry_w.get() != "":
+        button_ffmpeg.config(state="normal")
 
 
 button_browse = tk.Button(
     frame_select, text='Browse...', command=browseFirstImage)
 button_browse.grid(row=0, column=0, padx=12, pady=3)
-
-frame_entry = tk.Frame(frame_main, bd=1, relief="sunken",
-                       padx=12, pady=3, bg="red", width=1400)
-frame_entry.grid(column=1, row=0)
-
-tk.Label(frame_entry, text='Enter desired size:').grid(row=0)
-tk.Label(frame_entry, text='Width').grid(row=1)
-tk.Label(frame_entry, text='Height').grid(row=2)
-
-sv_w = tk.StringVar()
-sv_h = tk.StringVar()
-
-
-def sv_edited(var, indx, mode):
-    if entry_h.get() == "" or entry_w.get() == "":
-        return
-    else:
-        calculate_ratio()
-
-
-sv_w.trace_add("write", sv_edited)
-sv_h.trace_add("write", sv_edited)
-
-entry_w = tk.Entry(frame_entry, textvariable=sv_w)
-entry_h = tk.Entry(frame_entry, textvariable=sv_h)
-entry_w.grid(row=1, column=1)
-entry_h.grid(row=2, column=1)
-
-
-ratio_display = tk.Message(frame_entry, text="Ratio: N/A", width=500)
-ratio_display.grid(row=3, column=1)
 
 
 def calculate_ratio():
@@ -129,12 +104,17 @@ def calculate_ratio():
     ratio_display.config(text=disp_temp)
 
 
+frame_options = tk.Frame(frame_main, bd=1, relief="sunken",
+                         padx=12, pady=3, bg="yellow")
+frame_options.grid(column=0, row=1)
+
+
 def ffmpeg_export():
     des_w = int(entry_w.get())
     des_h = int(entry_h.get())
     if (des_w > imgw) or (des_h > imgh):
-        tk.messagebox.showerror(
-            title=None, message="Desired size is larger than source size!")
+        messagebox.showerror(
+            title="Error", message="Desired size is larger than source size!")
         return
     old_ratio = imgw / imgh
     new_ratio = des_w / des_h
@@ -170,7 +150,40 @@ frame_ffmpeg = tk.Frame(frame_main, bd=1, padx=12, pady=3, bg="blue")
 frame_ffmpeg.grid(column=1, row=1)
 
 button_ffmpeg = tk.Button(
-    frame_ffmpeg, text='TEST FFMPEG OUTPUT', command=ffmpeg_export)
-button_ffmpeg.grid(row=0, column=0, padx=12)
+    frame_ffmpeg, text='Render', command=ffmpeg_export, state="disabled")
+button_ffmpeg.grid(row=0, column=1, padx=12)
 
+frame_entry = tk.Frame(frame_main, bd=1, relief="sunken",
+                       padx=12, pady=3, bg="red", width=1400)
+frame_entry.grid(column=1, row=0)
+
+tk.Label(frame_entry, text='Enter desired size:').grid(row=0)
+tk.Label(frame_entry, text='Width').grid(row=1)
+tk.Label(frame_entry, text='Height').grid(row=2)
+
+sv_w = tk.StringVar()
+sv_h = tk.StringVar()
+
+
+def sv_edited(var, indx, mode):
+    if entry_h.get() == "" or entry_w.get() == "":
+        button_ffmpeg.config(state="disabled")
+        return
+    else:
+        if file_open:
+            button_ffmpeg.config(state="normal")
+        calculate_ratio()
+
+
+sv_w.trace_add("write", sv_edited)
+sv_h.trace_add("write", sv_edited)
+
+entry_w = tk.Entry(frame_entry, textvariable=sv_w)
+entry_h = tk.Entry(frame_entry, textvariable=sv_h)
+entry_w.grid(row=1, column=1)
+entry_h.grid(row=2, column=1)
+
+
+ratio_display = tk.Message(frame_entry, text="Ratio: N/A", width=500)
+ratio_display.grid(row=3, column=1)
 root.mainloop()
