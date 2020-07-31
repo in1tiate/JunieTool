@@ -6,7 +6,6 @@ import ffmpeg
 from subprocess import check_output
 import re
 from PIL import ImageTk, Image
-import ctypes
 import sys
 
 
@@ -141,8 +140,8 @@ def ffmpeg_export():
         new_h = new_ratio * imgw
         y_offset = (imgh - new_h) / 2
     for x in files:
-        # user never sees this because the UI freezes while ffmpeg runs, but it's a nice thought
         progress_ffmpeg.config(text='Rendering: ' + os.path.split(x)[1])
+        frame_ffmpeg.update()
         # ffmpeg complains if we try to output to the same file as our input...
         outdir = x + '~.png'
         if overwrite_og.get() == 0:
@@ -155,15 +154,12 @@ def ffmpeg_export():
         stream = ffmpeg.crop(stream, x_offset, y_offset, new_w, new_h)
         stream = ffmpeg.filter(stream, "scale", des_w, des_h)
         stream = ffmpeg.output(stream, outdir)
-        stream = ffmpeg.overwrite_output(stream)
-        ffmpeg.run(stream)
+        ffmpeg.run_async(stream)
         # ...so we output to a different file, then replace the original with ours afterwards.
         if overwrite_og.get() == 1:
             os.remove(x)
             os.rename(x + '~.png', x)
     progress_ffmpeg.config(text='Rendering: Done!')
-    ctypes.windll.user32.FlashWindow(
-        ctypes.windll.kernel32.GetConsoleWindow(), True)
 
 
 frame_ffmpeg = tk.Frame(root, bd=1, padx=12, pady=3,
