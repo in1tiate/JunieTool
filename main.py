@@ -61,14 +61,14 @@ selected_seq_info.grid(row=1, sticky="ew")
 selected_img_info = tk.Message(frame_select, text="", width=480)
 selected_img_info.grid(row=2, sticky="ew")
 
-imgw, imgh = (1, 1)
+sel_w, sel_h = (1, 1)
 files = []
 file_open = False
 
 
 def browseFirstImage():
-    global imgw
-    global imgh
+    global sel_w
+    global sel_h
     global files
     global file_open
     file = filedialog.askopenfile(
@@ -84,9 +84,9 @@ def browseFirstImage():
     selected_seq_info.config(
         text="Selected " + os.path.basename(file.name) + " (" + str(len(files)) + " total images)")
     im = Image.open(files[0])
-    imgw, imgh = im.size
+    sel_w, sel_h = im.size
     selected_img_info.config(
-        text=str(imgw)+"x"+str(imgh)+", "+calculate_aspect(imgw, imgh))
+        text=str(sel_w)+"x"+str(sel_h)+", "+calculate_aspect(sel_w, sel_h))
     file_open = True
     if entry_h.get() != "" and entry_w.get() != "":
         button_ffmpeg.config(state="normal")
@@ -123,22 +123,22 @@ radio_crop_w = tk.Radiobutton(
 def ffmpeg_export():
     des_w = int(entry_w.get())
     des_h = int(entry_h.get())
-    if (des_w > imgw) or (des_h > imgh):
+    if (des_w > sel_w) or (des_h > sel_h):
         messagebox.showerror(
             title="Error", message="Desired size is larger than source size!")
         return
-    old_ratio = imgw / imgh
-    new_ratio = des_w / des_h
+    sel_ratio = sel_w / sel_h
+    des_ratio = des_w / des_h
     x_offset = 0
     y_offset = 0
-    new_w = imgw
-    new_h = imgh
-    if (crop_h.get() == 1) and (old_ratio != new_ratio):
-        new_w = new_ratio * imgh  # get the new width for the desired aspect ratio
-        x_offset = (imgw - new_w) / 2  # centering math
-    elif (crop_h.get() == 0) and (old_ratio != new_ratio):
-        new_h = new_ratio * imgw
-        y_offset = (imgh - new_h) / 2
+    adj_w = sel_w
+    adj_h = sel_h
+    if (crop_h.get() == 1) and (sel_ratio != des_ratio):
+        adj_w = des_ratio * sel_h  # get the new width for the desired aspect ratio
+        x_offset = (sel_w - adj_w) / 2  # centering math
+    elif (crop_h.get() == 0) and (sel_ratio != des_ratio):
+        adj_h = des_ratio * sel_w
+        y_offset = (sel_h - adj_h) / 2
     for x in files:
         progress_ffmpeg.config(text='Rendering: ' + os.path.split(x)[1])
         frame_ffmpeg.update()
@@ -151,7 +151,7 @@ def ffmpeg_export():
             if not os.path.isdir(newdir):
                 os.mkdir(newdir)
         stream = ffmpeg.input(str(x))
-        stream = ffmpeg.crop(stream, x_offset, y_offset, new_w, new_h)
+        stream = ffmpeg.crop(stream, x_offset, y_offset, adj_w, adj_h)
         stream = ffmpeg.filter(stream, "scale", des_w, des_h)
         stream = ffmpeg.output(stream, outdir)
         ffmpeg.run_async(stream)
