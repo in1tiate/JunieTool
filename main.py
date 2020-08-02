@@ -150,10 +150,13 @@ def ffmpeg_export():
             outdir = newdir + os.sep + str(os.path.split(x)[1])
             if not os.path.isdir(newdir):
                 os.mkdir(newdir)
-        stream = ffmpeg.input(str(x))
+        stream = ffmpeg.input(str(x), nostdin=None)
         stream = ffmpeg.crop(stream, x_offset, y_offset, adj_w, adj_h)
-        stream = ffmpeg.filter(stream, "scale", des_w, des_h)
-        stream = ffmpeg.output(stream, outdir)
+        stream = ffmpeg.filter(stream, "scale", des_w,
+                               des_h, sws_flags="bilinear")
+        stream = ffmpeg.output(
+            stream, outdir, hide_banner=None)
+        stream = ffmpeg.overwrite_output(stream)
         ffmpeg.run_async(stream)
         # ...so we output to a different file, then replace the original with ours afterwards.
         if overwrite_og.get() == 1:
