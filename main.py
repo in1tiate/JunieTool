@@ -9,13 +9,13 @@ from PIL import ImageTk, Image
 import sys
 
 
-def resource_path(relative_path):
+def resource_path(relative_path):  # embedded files nonsense
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
 
 
-def sort_human(l):
+def sort_human(l):  # sort frame sequences in a sane way
     def convert(text): return float(text) if text.isdigit() else text
     def alphanum(key): return [convert(c)
                                for c in re.split('([-+]?[0-9]*\.?[0-9]*)', key)]
@@ -23,7 +23,11 @@ def sort_human(l):
     return l
 
 
-def calculate_aspect(width: int, height: int) -> str:
+# Return the aspect ratio as an actual ratio string instead of a decimal.
+# This is never used in our actual resizing calculations; it's just because
+# "4:3" is a lot prettier (and easier to understand) than "1.33333...".
+def aspect_ratio_str(width: int, height: int) -> str:
+
     temp = 0
 
     def gcd(a, b):
@@ -61,12 +65,13 @@ selected_seq_info.grid(row=1, sticky="ew")
 selected_img_info = tk.Message(frame_select, text="", width=480)
 selected_img_info.grid(row=2, sticky="ew")
 
+# placeholder values, not 0,0 because otherwise i get yelled at for dividing by zero
 sel_w, sel_h = (1, 1)
 files = []
 file_open = False
 
 
-def browseFirstImage():
+def select_frame_sequence():  # handle file browse dialog
     global sel_w
     global sel_h
     global files
@@ -76,33 +81,36 @@ def browseFirstImage():
     if not file:
         return None
     dir_ = os.path.dirname(file.name)
-    filetype = os.path.splitext(file.name)
+    filetype = os.path.splitext(file.name)  # get extension of selected file
     files = [os.path.abspath(os.path.join(dir_, f))
              for f in os.listdir(dir_)
-             if f.endswith(filetype)]
+             if f.endswith(filetype)]  # create list of every file in same dir w/ same extension as selected file
     files = sort_human(files)
-    selected_seq_info.config(
+    selected_seq_info.config(  # update info labels
         text="Selected " + os.path.basename(file.name) + " (" + str(len(files)) + " total images)")
     im = Image.open(files[0])
     sel_w, sel_h = im.size
     selected_img_info.config(
-        text=str(sel_w)+"x"+str(sel_h)+", "+calculate_aspect(sel_w, sel_h))
+        text=str(sel_w)+"x"+str(sel_h)+", "+aspect_ratio_str(sel_w, sel_h))
     file_open = True
+    # check if we already have a desired size before enabling render button
     if entry_h.get() != "" and entry_w.get() != "":
         button_ffmpeg.config(state="normal")
 
 
 button_browse = tk.Button(
-    frame_select, text='Browse...', command=browseFirstImage, width=15)
-button_browse.grid(row=0, sticky="ew")
+    frame_select, text='Browse...', command=select_frame_sequence, width=15)
+button_browse.grid(row=0, sticky="ew")  # ew, sticky
 
 
-def calculate_ratio():
+def update_desired_ratio():  # called whenever the w/h entries are edited, keep this light
     disp_temp = "Ratio: " + \
-        str(calculate_aspect(int(entry_w.get()), int(entry_h.get())))
+        str(aspect_ratio_str(int(entry_w.get()), int(entry_h.get())))
     ratio_display.config(text=disp_temp)
 
 
+# no, an "intvar" and an int var are not the same thing
+# yes, i am annoyed about it
 crop_h = tk.IntVar()
 crop_h.set(1)
 overwrite_og = tk.IntVar()
@@ -120,7 +128,7 @@ radio_crop_w = tk.Radiobutton(
     frame_options, text="Crop by width", variable=crop_h, value=0).pack(anchor="w")
 
 
-def ffmpeg_export():
+def ffmpeg_export():  # the real meat, this is where i struggle with ffmpeg-python and occasionally succeed
     des_w = int(entry_w.get())
     des_h = int(entry_h.get())
     if (des_w > sel_w) or (des_h > sel_h):
@@ -129,6 +137,7 @@ def ffmpeg_export():
         return
     sel_ratio = sel_w / sel_h
     des_ratio = des_w / des_h
+    # safe placeholder values for when src and output have the same ratio
     x_offset = 0
     y_offset = 0
     adj_w = sel_w
@@ -142,24 +151,25 @@ def ffmpeg_export():
     for x in files:
         progress_ffmpeg.config(text='Rendering: ' + os.path.split(x)[1])
         frame_ffmpeg.update()
-        # ffmpeg complains if we try to output to the same file as our input...
+        # ffmpeg complains if we try to output to the same file as our input
+        # so we output to a different file and replace the input afterwards
         outdir = x + '~.png'
         if overwrite_og.get() == 0:
             newdir = os.path.dirname(str(x)) + '_' + \
-                str(des_w) + 'x' + str(des_h)
+                str(des_w) + 'x' + str(
+                    des_h)  # results in {old directory}_{width}x{height} in the old directory's parent dir
             outdir = newdir + os.sep + str(os.path.split(x)[1])
             if not os.path.isdir(newdir):
                 os.mkdir(newdir)
         stream = ffmpeg.input(str(x), nostdin=None)
         stream = ffmpeg.crop(stream, x_offset, y_offset, adj_w, adj_h)
         stream = ffmpeg.filter(stream, "scale", des_w,
-                               des_h, sws_flags="bilinear")
+                               des_h, flags="lanczos+full_chroma_inp")  # TODO: allow user to choose algorithm
         stream = ffmpeg.output(
-            stream, outdir, hide_banner=None)
+            stream, outdir, hide_banner=None)  # TODO: find a way to stop making a new shell for each op
         stream = ffmpeg.overwrite_output(stream)
         ffmpeg.run_async(stream)
-        # ...so we output to a different file, then replace the original with ours afterwards.
-        if overwrite_og.get() == 1:
+        if overwrite_og.get() == 1:  # check again because overwriting when we're not supposed to is bad mkay
             os.remove(x)
             os.rename(x + '~.png', x)
     progress_ffmpeg.config(text='Rendering: Done!')
@@ -183,6 +193,8 @@ tk.Label(frame_entry, text='Enter desired size:').grid(row=0, column=0)
 tk.Label(frame_entry, text='Width').grid(row=1, column=0, sticky="e")
 tk.Label(frame_entry, text='Height').grid(row=2, column=0, sticky="e")
 
+# no, stringvar and string var are also not the same thing
+# yes, i am still annoyed
 sv_w = tk.StringVar()
 sv_h = tk.StringVar()
 
@@ -194,7 +206,7 @@ def sv_edited(var, indx, mode):
     else:
         if file_open:
             button_ffmpeg.config(state="normal")
-        calculate_ratio()
+        update_desired_ratio()
 
 
 sv_w.trace_add("write", sv_edited)
