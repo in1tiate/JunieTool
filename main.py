@@ -164,7 +164,7 @@ def ffmpeg_export():  # the real meat, this is where i struggle with ffmpeg-pyth
         stream = ffmpeg.input(str(x), nostdin=None)
         stream = ffmpeg.crop(stream, x_offset, y_offset, adj_w, adj_h)
         stream = ffmpeg.filter(stream, "scale", des_w,
-                               des_h, flags="lanczos+full_chroma_inp")  # TODO: allow user to choose algorithm
+                               des_h, flags="bilinear")  # TODO: allow user to choose algorithm
         stream = ffmpeg.output(
             stream, outdir, hide_banner=None)  # TODO: find a way to stop making a new shell for each op
         stream = ffmpeg.overwrite_output(stream)
