@@ -8,3 +8,4 @@ WIP GUI tool to automate resizing, cropping, and assembling WebP animations with
 # Planned features
 * Ability to export animations to WebP
 * Timeline editor for complex timing info
+* Ability to resize more than one set of frame sequences at once
