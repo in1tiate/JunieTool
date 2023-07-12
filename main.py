@@ -31,7 +31,6 @@ def aspect_ratio_str(width: int, height: int) -> str:
     temp = 0
 
     def gcd(a, b):
-        """The GCD (greatest common divisor) is the highest number that evenly divides both width and height."""
         return a if b == 0 else gcd(b, a % b)
 
     if width == height:
